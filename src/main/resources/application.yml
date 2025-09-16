@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: restaurant
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1521/XEPDB1
+    username: RESTAURANT
+    password: Restaurant!123
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 60000
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    tagsSorter: alpha
+    path: /swagger-ui
+    enabled: true
+  webjars:
+    prefix: /
+  writer-with-order-by-keys: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  jpa:
+    show-sql: true
