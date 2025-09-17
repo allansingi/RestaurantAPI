@@ -1,10 +1,7 @@
 package pt.allanborges.restaurant.model.entities;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.Digits;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,7 +18,8 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @Data
 @EqualsAndHashCode(callSuper = false)
-@Entity(name = "DISHES")
+@Entity
+@Table(name = "DISHES")
 public class Dish extends BaseEntity implements Serializable {
 
     @Serial
