@@ -3,10 +3,12 @@ package pt.allanborges.restaurant.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -29,13 +31,22 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // OPEN endpoints
                         .requestMatchers("/auth/login", "/auth/register", "/auth/register-admin",
                                 "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/dishes", "/v1/dishes/*").permitAll()
+
+                        // ROLE-protected dish writes
+                        .requestMatchers(HttpMethod.POST, "/v1/dishes/**").hasAnyRole("ADMIN","KITCHEN")
+                        .requestMatchers(HttpMethod.PUT,  "/v1/dishes/**").hasAnyRole("ADMIN","KITCHEN")
+
+                        // Other admin endpoints
                         .requestMatchers("/admin/users/**").hasRole("ADMIN")
-                        .requestMatchers("/v1/dishes/**").hasAnyRole("ADMIN","WAITER","KITCHEN")
+
+                        // everything else
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -44,15 +55,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(
-            HttpSecurity http,
-            PasswordEncoder passwordEncoder,
-            UserDetailsService userDetailsService) throws Exception {
-
-        AuthenticationManagerBuilder auth = http.getSharedObject(AuthenticationManagerBuilder.class);
-        auth.userDetailsService(userDetailsService)
-                .passwordEncoder(passwordEncoder);
+    public AuthenticationManager authenticationManager(HttpSecurity http,
+                                                       PasswordEncoder passwordEncoder,
+                                                       UserDetailsService userDetailsService) throws Exception {
+        var auth = http.getSharedObject(AuthenticationManagerBuilder.class);
+        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder);
         return auth.build();
     }
-
 }
