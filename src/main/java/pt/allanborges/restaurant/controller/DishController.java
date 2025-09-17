@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pt.allanborges.restaurant.controller.apidocs.DishApiDocs;
 import pt.allanborges.restaurant.model.dtos.DishDTO;
@@ -19,6 +20,7 @@ public class DishController implements DishApiDocs {
     private final DishService dishService;
 
 
+    @PreAuthorize("hasAnyRole('ADMIN','KITCHEN')")
     @Override
     @PostMapping
     public ResponseEntity<DishDTO> createDish(@RequestBody @Valid final DishDTO dishDTO) {
@@ -37,6 +39,7 @@ public class DishController implements DishApiDocs {
         return ResponseEntity.ok().body(dishService.getDishById(dishId));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','KITCHEN')")
     @Override
     @PutMapping("/{dishId}")
     public ResponseEntity<DishDTO> updateDish(@PathVariable final Long dishId, @RequestBody @Valid final DishDTO dishDTO) {
