@@ -20,6 +20,14 @@ spring:
         format_sql: true
     show-sql: false
 
+app:
+  jwt:
+    issuer: restaurant-api
+    secret: "dzot029cVi1ztRpwj8NOUetcrgXgLor2aOX0yNM0Wvq6XLKVmchaSJ8tBH2mxtRXrkKzfOhRKDU8KPStoO63bhnAGcNJhpD3ZLrWQ5TzZgQ="
+    expiration-minutes: 120
+  admin:
+    bootstrap-secret: ${ADMIN_BOOTSTRAP_SECRET:change-me}
+
 springdoc:
   api-docs:
     path: /api-docs

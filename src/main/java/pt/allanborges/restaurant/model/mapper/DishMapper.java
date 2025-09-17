@@ -14,15 +14,13 @@ public interface DishMapper {
     List<DishDTO> toDTOList(List<Dish> dishList);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    @Mappings({
-            @Mapping(target = "createdBy", ignore = true),
-            @Mapping(target = "createdDate", ignore = true),
-            @Mapping(target = "updatedBy", ignore = true),
-            @Mapping(target = "updatedDate", ignore = true),
-            @Mapping(target = "inactivatedBy", ignore = true),
-            @Mapping(target = "inactivatedDate", ignore = true),
-            @Mapping(target = "id", ignore = true)
-    })
+    @Mapping(target = "createdBy", ignore = true)
+    @Mapping(target = "createdDate", ignore = true)
+    @Mapping(target = "updatedBy", ignore = true)
+    @Mapping(target = "updatedDate", ignore = true)
+    @Mapping(target = "inactivatedBy", ignore = true)
+    @Mapping(target = "inactivatedDate", ignore = true)
+    @Mapping(target = "id", ignore = true)
     void updateEntityFromDTO(DishDTO dto, @MappingTarget Dish entity);
 
 }
