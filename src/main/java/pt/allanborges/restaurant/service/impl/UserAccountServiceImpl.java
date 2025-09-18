@@ -35,6 +35,8 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
     @Value("${app.admin.bootstrap-secret}")
     private String adminBootstrapSecret;
 
+    private static final String USER_NOT_FOUND = "User not found";
+
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserAccountMapper userAccountMapper;
@@ -56,7 +58,7 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
         }
 
         UserAccount user = userAccountRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("User not found"));
+                .orElseThrow(() -> new NoSuchElementException(USER_NOT_FOUND));
 
         // roles: keep current if not provided
         if (req.roles() != null && !req.roles().isEmpty()) {
@@ -84,7 +86,7 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
         AuthenticationManager authManager = resolveAuthManager();
         authManager.authenticate(new UsernamePasswordAuthenticationToken(req.username(), req.password()));
         UserAccount user = userAccountRepository.findByUsername(req.username())
-                .orElseThrow(() -> new NoSuchElementException("User not found"));
+                .orElseThrow(() -> new NoSuchElementException(USER_NOT_FOUND));
 
         if (!user.isEnabled() || user.getInactivatedDate() != null)
             throw new AccessDeniedException("Account is not active");
@@ -156,7 +158,7 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
     @Override
     public UserDetails loadUserByUsername(String username) {
         var userAccount = userAccountRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+                .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
 
         var authorities = userAccount.getRoles().stream()
                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.name()))
