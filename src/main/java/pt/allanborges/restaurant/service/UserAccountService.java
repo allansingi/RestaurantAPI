@@ -10,7 +10,7 @@ public interface UserAccountService {
     UserResponse approveUser(final Long id, final ApproveUserRequest req, final String by);
 
     //AuthController methods
-    AuthResponse login(final AuthRequest req) throws Exception;
+    AuthResponse login(final AuthRequest req);
     UserResponse userRegister(final RegisterUserRequest req);
     UserResponse registerAdmin(final RegisterUserRequest req, final String providedSecret);
 }

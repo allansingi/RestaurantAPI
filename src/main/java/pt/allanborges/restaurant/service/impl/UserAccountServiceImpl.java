@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import pt.allanborges.restaurant.controller.handlers.exceptions.AuthManagerResolveException;
 import pt.allanborges.restaurant.controller.handlers.exceptions.NoSuchElementException;
 import pt.allanborges.restaurant.model.entities.UserAccount;
 import pt.allanborges.restaurant.model.enums.Role;
@@ -79,8 +80,8 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
 
     //AuthController methods
     @Override
-    public AuthResponse login(AuthRequest req) throws Exception {
-        AuthenticationManager authManager = authConfig.getAuthenticationManager();
+    public AuthResponse login(AuthRequest req) {
+        AuthenticationManager authManager = resolveAuthManager();
         authManager.authenticate(new UsernamePasswordAuthenticationToken(req.username(), req.password()));
         UserAccount user = userAccountRepository.findByUsername(req.username())
                 .orElseThrow(() -> new NoSuchElementException("User not found"));
@@ -90,6 +91,14 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
 
         String token = jwt.generate(user.getUsername(), user.getRoles());
         return new AuthResponse(token);
+    }
+
+    private AuthenticationManager resolveAuthManager() {
+        try {
+            return authConfig.getAuthenticationManager();
+        } catch (Exception e) {
+            throw new AuthManagerResolveException("Failed to obtain AuthenticationManager", e);
+        }
     }
 
     @Override

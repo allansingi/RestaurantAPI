@@ -37,7 +37,7 @@ public interface AuthApiDocs {
                     content = @Content(mediaType = APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = StandardError.class)))
     })
-    ResponseEntity<AuthResponse> login(AuthRequest req) throws Exception;
+    ResponseEntity<AuthResponse> login(AuthRequest req);
 
     @Operation(summary = "Register user", description = "Register a new user as CLIENT (pending admin approval)")
     @ApiResponses(value = {
