@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import pt.allanborges.restaurant.controller.apidocs.AuthApiDocs;
 import pt.allanborges.restaurant.security.dtos.AuthRequest;
 import pt.allanborges.restaurant.security.dtos.AuthResponse;
 import pt.allanborges.restaurant.security.dtos.RegisterUserRequest;
@@ -14,7 +15,7 @@ import pt.allanborges.restaurant.service.UserAccountService;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthApiDocs {
 
     private final UserAccountService userService;
 
