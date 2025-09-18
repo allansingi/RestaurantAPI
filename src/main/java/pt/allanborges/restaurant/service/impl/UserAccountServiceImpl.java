@@ -80,21 +80,13 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
     //AuthController methods
     @Override
     public AuthResponse login(AuthRequest req) throws Exception {
-        // Will throw AuthenticationException on bad credentials
         AuthenticationManager authManager = authConfig.getAuthenticationManager();
-
-        authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.username(), req.password())
-        );
-
+        authManager.authenticate(new UsernamePasswordAuthenticationToken(req.username(), req.password()));
         UserAccount user = userAccountRepository.findByUsername(req.username())
                 .orElseThrow(() -> new NoSuchElementException("User not found"));
 
-        // Extra guard: account must be enabled and active
-        if (!user.isEnabled() || user.getInactivatedDate() != null) {
-            // map to 403; a @ControllerAdvice can convert this to proper response body
+        if (!user.isEnabled() || user.getInactivatedDate() != null)
             throw new AccessDeniedException("Account is not active");
-        }
 
         String token = jwt.generate(user.getUsername(), user.getRoles());
         return new AuthResponse(token);
