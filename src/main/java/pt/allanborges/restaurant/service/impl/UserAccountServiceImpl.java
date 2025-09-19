@@ -66,6 +66,8 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
 
         if (user.getRoles() != null && user.getRoles().contains(Role.ADMIN))
             throw new AdminApprovalNotAllowedException("Admin users cannot be approved/modified via this endpoint.");
+        if (req.roles() != null && req.roles().contains(Role.ADMIN))
+            throw new AdminApprovalNotAllowedException("Granting ADMIN role is not allowed via this endpoint.");
 
         // roles: keep current if not provided
         if (req.roles() != null && !req.roles().isEmpty()) {
