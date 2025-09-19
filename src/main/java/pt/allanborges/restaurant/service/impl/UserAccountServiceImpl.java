@@ -25,6 +25,8 @@ import pt.allanborges.restaurant.security.JwtService;
 import pt.allanborges.restaurant.security.dtos.*;
 import pt.allanborges.restaurant.service.UserAccountService;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -66,6 +68,8 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
 
         if (user.getRoles() != null && user.getRoles().contains(Role.ADMIN))
             throw new AdminApprovalNotAllowedException("Admin users cannot be approved/modified via this endpoint.");
+        if (req.roles() != null && req.roles().contains(Role.ADMIN))
+            throw new AdminApprovalNotAllowedException("Granting ADMIN role is not allowed via this endpoint.");
 
         // roles: keep current if not provided
         if (req.roles() != null && !req.roles().isEmpty()) {
@@ -178,10 +182,10 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
         if (providedSecret == null)
             throw new InvalidAdminSecretException("Invalid admin bootstrap secret");
 
-        var provided = providedSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        var expected = adminBootstrapSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var provided = providedSecret.getBytes(StandardCharsets.UTF_8);
+        var expected = adminBootstrapSecret.getBytes(StandardCharsets.UTF_8);
 
-        if (!java.security.MessageDigest.isEqual(provided, expected))
+        if (!MessageDigest.isEqual(provided, expected))
             throw new InvalidAdminSecretException("Invalid admin bootstrap secret");
 
     }

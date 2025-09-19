@@ -14,7 +14,7 @@ public enum DishCode {
     PASTA(5L, "PASTA", "Pasta dish"),
     DRINK(6L, "DRINK", "Drinks"),
     DESSERT(7L, "DESSERT", "Dessert"),
-    BREAD(8L, "SIDE", "Side dish"),
+    SIDE(8L, "SIDE", "Side dish"),
     SALAD(9L, "SALAD", "Salad");
 
     private final Long id;
