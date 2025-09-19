@@ -20,14 +20,7 @@ import java.util.Set;
 @Builder
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(
-        name = "USERS",
-        uniqueConstraints = {
-                @UniqueConstraint(name = "UK_USERS_USERNAME", columnNames = {"USERNAME"}),
-                @UniqueConstraint(name = "UK_USERS_EMAIL", columnNames = {"EMAIL"}),
-                @UniqueConstraint(name = "UK_USERS_NIF", columnNames = {"NIF"})
-        }
-)
+@Table(name = "USERS")
 public class UserAccount extends BaseEntity implements Serializable {
 
     @Serial
@@ -92,7 +85,6 @@ public class UserAccount extends BaseEntity implements Serializable {
         if (primaries > 1) {
             throw new IllegalArgumentException("Only one primary address is allowed per user.");
         }
-        // Optional: if none is primary, auto-select the first as primary
         if (primaries == 0 && !addrs.isEmpty()) {
             addrs.get(0).setPrimaryAddress(true);
         }
