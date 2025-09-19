@@ -13,10 +13,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import pt.allanborges.restaurant.controller.handlers.exceptions.NoSuchElementException;
-import pt.allanborges.restaurant.controller.handlers.exceptions.ResourceNotFoundException;
-import pt.allanborges.restaurant.controller.handlers.exceptions.StandardError;
-import pt.allanborges.restaurant.controller.handlers.exceptions.ValidationEx;
+import pt.allanborges.restaurant.controller.handlers.exceptions.*;
 
 import java.util.ArrayList;
 
@@ -118,6 +115,37 @@ public class GlobalExceptionHandler {
         String msg = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : "Access is denied";
         log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(std(HttpStatus.FORBIDDEN, msg, request));
+    }
+
+    @ExceptionHandler(UsernameAlreadyExistsException.class)
+    ResponseEntity<StandardError> handleUsernameAlreadyExists(
+            UsernameAlreadyExistsException ex, HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
+                StandardError.builder()
+                        .timestamp(now())
+                        .status(HttpStatus.CONFLICT.value())
+                        .error("Conflict")
+                        .message(ex.getMessage())
+                        .path(request.getRequestURI())
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(AdminApprovalNotAllowedException.class)
+    ResponseEntity<StandardError> handleAdminApprovalNotAllowed(
+            final AdminApprovalNotAllowedException ex,
+            final HttpServletRequest request) {
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                StandardError.builder()
+                        .timestamp(now())
+                        .status(HttpStatus.FORBIDDEN.value())
+                        .error(HttpStatus.FORBIDDEN.getReasonPhrase())
+                        .message(ex.getMessage())
+                        .path(request.getRequestURI())
+                        .build()
+        );
     }
 
     // Catch-all (optional, good for logging)

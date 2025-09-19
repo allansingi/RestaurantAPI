@@ -14,10 +14,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import pt.allanborges.restaurant.controller.handlers.exceptions.AuthManagerResolveException;
-import pt.allanborges.restaurant.controller.handlers.exceptions.NoSuchElementException;
+import pt.allanborges.restaurant.controller.handlers.exceptions.*;
+import pt.allanborges.restaurant.model.entities.Address;
 import pt.allanborges.restaurant.model.entities.UserAccount;
 import pt.allanborges.restaurant.model.enums.Role;
+import pt.allanborges.restaurant.model.mapper.AddressMapper;
 import pt.allanborges.restaurant.model.mapper.UserAccountMapper;
 import pt.allanborges.restaurant.repository.UserAccountRepository;
 import pt.allanborges.restaurant.security.JwtService;
@@ -26,6 +27,7 @@ import pt.allanborges.restaurant.service.UserAccountService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,25 +42,30 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserAccountMapper userAccountMapper;
+    private final AddressMapper addressMapper;
+
     private final JwtService jwt;
     private final AuthenticationConfiguration authConfig;
 
 
-    //UserAdminController methods
     @Override
+    @Transactional
     public List<UserResponse> findAllUserAccounts() {
-        return userAccountMapper.toDTOList(userAccountRepository.findAll());
+        var users = userAccountRepository.findAll();
+        return userAccountMapper.toDTOList(users);
     }
 
     @Override
     @Transactional
     public UserResponse approveUser(Long id, ApproveUserRequest req, String by) {
-        if (req == null) {
+        if (req == null)
             req = new ApproveUserRequest(null, true); // default enable=true, keep existing roles
-        }
 
         UserAccount user = userAccountRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException(USER_NOT_FOUND));
+
+        if (user.getRoles() != null && user.getRoles().contains(Role.ADMIN))
+            throw new AdminApprovalNotAllowedException("Admin users cannot be approved/modified via this endpoint.");
 
         // roles: keep current if not provided
         if (req.roles() != null && !req.roles().isEmpty()) {
@@ -79,6 +86,7 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
 
         return userAccountMapper.toDTO(userAccountRepository.save(user));
     }
+
 
     //AuthController methods
     @Override
@@ -109,17 +117,33 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
         userAccountRepository.findByUsername(req.username()).ifPresent(u -> {
             throw new IllegalArgumentException("Username already exists");
         });
+        userAccountRepository.findByEmail(req.email()).ifPresent(u -> {
+            throw new IllegalArgumentException("E-mail already exists");
+        });
+        if (req.nif() != null) {
+            userAccountRepository.findByNif(req.nif()).ifPresent(u -> {
+                throw new IllegalArgumentException("NIF already exists");
+            });
+        }
 
         UserAccount userAccount = UserAccount.builder()
                 .username(req.username())
                 .passwordHash(passwordEncoder.encode(req.password()))
-                .roles(java.util.Set.of(Role.CLIENT))    // default role
-                .enabled(false)                          // pending
+                .name(req.name())
+                .email(req.email())
+                .nif(req.nif())
+                .roles(Set.of(Role.CLIENT))
+                .enabled(false)
                 .build();
 
-        // mark as “inactive” until admin approves
-        userAccount.setInactivatedDate(LocalDateTime.now());
+        if (req.addresses() != null && !req.addresses().isEmpty()) {
+            List<Address> addresses = req.addresses().stream()
+                    .map(addressMapper::toEntity)
+                    .toList();
+            userAccount.setAddresses(addresses);
+        }
 
+        userAccount.setInactivatedDate(LocalDateTime.now());
         userAccount = userAccountRepository.save(userAccount);
         return userAccountMapper.toDTO(userAccount);
     }
@@ -128,23 +152,18 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
     @Transactional
     public UserResponse registerAdmin(RegisterUserRequest req, String providedSecret) {
         // Validation - admin secret
-        if (providedSecret == null || !java.security.MessageDigest.isEqual(
-                providedSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                adminBootstrapSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.FORBIDDEN, "Forbidden");
-        }
-
+        validateAdminSecret(providedSecret);
         // Uniqueness check -> 409
         userAccountRepository.findByUsername(req.username()).ifPresent(u -> {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.CONFLICT, "Username already exists");
+            throw new UsernameAlreadyExistsException("Username already exists");
         });
 
         // Create ADMIN
         UserAccount admin = UserAccount.builder()
                 .username(req.username())
                 .passwordHash(passwordEncoder.encode(req.password()))
+                .name(req.name())
+                .email(req.email())
                 .roles(java.util.Set.of(Role.ADMIN))
                 .enabled(true)
                 .build();
@@ -153,6 +172,18 @@ public class UserAccountServiceImpl implements UserAccountService, UserDetailsSe
 
         admin = userAccountRepository.save(admin);
         return userAccountMapper.toDTO(admin);
+    }
+
+    private void validateAdminSecret(String providedSecret) {
+        if (providedSecret == null)
+            throw new InvalidAdminSecretException("Invalid admin bootstrap secret");
+
+        var provided = providedSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var expected = adminBootstrapSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        if (!java.security.MessageDigest.isEqual(provided, expected))
+            throw new InvalidAdminSecretException("Invalid admin bootstrap secret");
+
     }
 
     @Override
