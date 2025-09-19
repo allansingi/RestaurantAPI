@@ -21,7 +21,7 @@ public class AuthController implements AuthApiDocs {
 
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest req) throws Exception {
+    public ResponseEntity<AuthResponse> login(@RequestBody @Valid AuthRequest req) {
         return ResponseEntity.ok(userService.login(req));
     }
 
