@@ -2,12 +2,14 @@ package pt.allanborges.restaurant.controller;
 
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pt.allanborges.restaurant.controller.apidocs.DishApiDocs;
 import pt.allanborges.restaurant.model.dtos.DishDTO;
+import pt.allanborges.restaurant.model.dtos.DishFilterDTO;
 import pt.allanborges.restaurant.service.DishService;
 
 import java.util.List;
@@ -44,6 +46,16 @@ public class DishController implements DishApiDocs {
     @PutMapping("/{dishId}")
     public ResponseEntity<DishDTO> updateDish(@PathVariable final Long dishId, @RequestBody @Valid final DishDTO dishDTO) {
         return ResponseEntity.ok().body(dishService.updateDish(dishId, dishDTO));
+    }
+
+    @Override
+    @GetMapping("/paged")
+    public ResponseEntity<Page<DishDTO>> findAllDishesWithFilters(@RequestParam(name = "page", defaultValue = "0") final Integer page,
+                                                                  @RequestParam(name = "size", defaultValue = "10") final Integer size,
+                                                                  @RequestParam(name = "sort", defaultValue = "DESC") final String sort,
+                                                                  @RequestParam(name = "orderBy", required = false) final String orderBy,
+                                                                  @ModelAttribute final DishFilterDTO filter) {
+        return ResponseEntity.ok().body(dishService.findAllDishesPaginatedWithFilters(page, size, sort, orderBy, filter));
     }
 
 }
