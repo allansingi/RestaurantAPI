@@ -103,6 +103,7 @@ public class DishServiceImpl implements DishService {
 
     private List<Predicate> buildPredicates(DishFilterDTO filter, CriteriaBuilder builder, Root<Dish> root) {
         List<Predicate> predicates = new ArrayList<>();
+        predicates.add(builder.isNull(root.get("inactivatedDate")));
         addEqualPredicateForLong(filter.getId(), root.get("id"), builder, predicates);
         addLikePredicate(filter.getName(), root.get("name"), builder, predicates);
         addLikePredicate(filter.getDescription(), root.get("description"), builder, predicates);
