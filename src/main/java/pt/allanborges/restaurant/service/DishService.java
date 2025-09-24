@@ -3,7 +3,6 @@ package pt.allanborges.restaurant.service;
 import org.springframework.data.domain.Page;
 import pt.allanborges.restaurant.model.dtos.DishDTO;
 import pt.allanborges.restaurant.model.dtos.DishFilterDTO;
-import pt.allanborges.restaurant.model.entities.Dish;
 
 import java.util.List;
 

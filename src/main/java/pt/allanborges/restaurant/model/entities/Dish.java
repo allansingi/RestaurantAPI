@@ -7,7 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import pt.allanborges.restaurant.model.enums.DishCode;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -38,8 +37,8 @@ public class Dish extends BaseEntity implements Serializable {
     @Column(name = "STOCK", nullable = false)
     private Integer stock;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "CODE", length = 64)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "CODE_ID", nullable = false)
     private DishCode code;
 
     @Column(name = "IMAGE_URL", length = 400)
