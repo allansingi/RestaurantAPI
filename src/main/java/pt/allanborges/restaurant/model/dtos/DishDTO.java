@@ -1,6 +1,7 @@
 package pt.allanborges.restaurant.model.dtos;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,9 +31,9 @@ public class DishDTO {
     @NotNull(message = "Dish stock is required")
     @PositiveOrZero(message = "Stock must be >= 0")
     private Integer stock;
-    @NotBlank(message = "Dish code is required")
-    @Size(min = 3, max = 64, message = "Dish code must be 3–64 characters")
-    private String code;
+    @NotNull(message = "Dish code is required")
+    @Valid
+    private DishCodeDTO code;
     @NotBlank(message = "Dish image url is required")
     @Size(max = 400, message = "Image URL max 400 characters")
     private String imageUrl;

@@ -12,9 +12,10 @@ import pt.allanborges.restaurant.controller.handlers.exceptions.ResourceNotFound
 import pt.allanborges.restaurant.model.dtos.DishDTO;
 import pt.allanborges.restaurant.model.dtos.DishFilterDTO;
 import pt.allanborges.restaurant.model.entities.Dish;
-import pt.allanborges.restaurant.model.enums.DishCode;
+import pt.allanborges.restaurant.model.entities.DishCode;
 import pt.allanborges.restaurant.model.mapper.DishMapper;
 import pt.allanborges.restaurant.repository.DishRepository;
+import pt.allanborges.restaurant.service.DishCodeService;
 import pt.allanborges.restaurant.service.DishService;
 
 import java.math.BigDecimal;
@@ -37,34 +38,47 @@ public class DishServiceImpl implements DishService {
 
     private final DishRepository dishRepository;
     private final DishMapper dishMapper;
+    private final DishCodeService dishCodeService;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     @Override
-    public DishDTO createDish(final DishDTO dishDTO) {
-        return dishMapper.toDTO(dishRepository.save(dishMapper.toEntity(dishDTO)));
+    @Transactional
+    public DishDTO createDish(final DishDTO dto) {
+        Dish entity = dishMapper.toEntity(dto);
+        var codeDto = dto.getCode();
+        if (codeDto == null || codeDto.getCode() == null || codeDto.getCode().isBlank())
+            throw new IllegalArgumentException("Dish code is required");
+
+        var code = dishCodeService.resolveOrCreate(codeDto.getCode(), codeDto.getDescription());
+        entity.setCode(code);
+        return dishMapper.toDTO(dishRepository.save(entity));
     }
 
-    @Override
     public List<DishDTO> findAllDishes() {
-        return dishMapper.toDTOList(dishRepository.findByInactivatedDateIsNull());
+        var active = dishRepository.findByInactivatedDateIsNull();
+        return dishMapper.toDTOList(active);
     }
 
     @Override
     public DishDTO getDishById(final Long id) {
-        return dishMapper.toDTO(dishRepository.findById(id).orElseThrow(
-                ()-> new ResourceNotFoundException("Dish not found. Id: " + id)));
+        Dish dish = dishRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Dish not found. Id: " + id));
+        return dishMapper.toDTO(dish);
     }
 
     @Override
     @Transactional
-    public DishDTO updateDish(final Long dishId, final DishDTO dishDTO) {
-        Dish current = dishRepository.findById(dishId)
-                .orElseThrow(() -> new ResourceNotFoundException("Dish not found. Id: " + dishId));
-        dishMapper.updateEntityFromDTO(dishDTO, current);
-        Dish saved = dishRepository.save(current);
-        return dishMapper.toDTO(saved);
+    public DishDTO updateDish(final Long id, final DishDTO dto) {
+        Dish current = dishRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Dish not found. Id: " + id));
+        dishMapper.updateEntityFromDTO(dto, current);
+        if (dto.getCode() != null && dto.getCode().getCode() != null && !dto.getCode().getCode().isBlank()) {
+            var code = dishCodeService.resolveOrCreate(dto.getCode().getCode(), dto.getCode().getDescription());
+            current.setCode(code);
+        }
+        return dishMapper.toDTO(dishRepository.save(current));
     }
 
     @Override
@@ -77,151 +91,131 @@ public class DishServiceImpl implements DishService {
         log.info("Returning paginated DishDTO list with filters");
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.fromString(sort), orderBy));
         Page<DishDTO> response = findAllDishesWithFilters(filter, pageable).map(dishMapper::toDTO);
-        List<DishDTO> updatedContent = response.getContent();
-        return new PageImpl<>(updatedContent, pageable, response.getTotalElements());
+        return new PageImpl<>(response.getContent(), pageable, response.getTotalElements());
     }
+
+    // --------- Criteria filtering ----------
 
     @Transactional
     public Page<Dish> findAllDishesWithFilters(DishFilterDTO filter, Pageable pageable) {
-        CriteriaBuilder builder = entityManager.getCriteriaBuilder();
-        CriteriaQuery<Dish> query = builder.createQuery(Dish.class);
-        Root<Dish> requestRoot = query.from(Dish.class);
-        List<Predicate> predicates = buildPredicates(filter, builder, requestRoot);
-        query.where(predicates.toArray(new Predicate[0]));
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
 
-        if (pageable.getSort().isSorted())
-            query.orderBy(getOrderList(pageable, builder, requestRoot));
+        CriteriaQuery<Dish> cq = cb.createQuery(Dish.class);
+        Root<Dish> root = cq.from(Dish.class);
+        List<Predicate> predicates = buildPredicates(filter, cb, root);
+        cq.where(predicates.toArray(new Predicate[0]));
 
-        List<Dish> resultList = entityManager.createQuery(query)
+        if (pageable.getSort().isSorted()) {
+            cq.orderBy(getOrderList(pageable, cb, root));
+        }
+
+        List<Dish> result = entityManager.createQuery(cq)
                 .setFirstResult((int) pageable.getOffset())
                 .setMaxResults(pageable.getPageSize())
                 .getResultList();
 
-        long total = getTotalCount(filter, builder);
-        return new PageImpl<>(resultList, pageable, total);
+        long total = getTotalCount(filter, cb);
+        return new PageImpl<>(result, pageable, total);
     }
 
-    private List<Predicate> buildPredicates(DishFilterDTO filter, CriteriaBuilder builder, Root<Dish> root) {
+    private List<Predicate> buildPredicates(DishFilterDTO filter, CriteriaBuilder cb, Root<Dish> root) {
         List<Predicate> predicates = new ArrayList<>();
-        predicates.add(builder.isNull(root.get("inactivatedDate")));
-        addEqualPredicateForLong(filter.getId(), root.get("id"), builder, predicates);
-        addLikePredicate(filter.getName(), root.get("name"), builder, predicates);
-        addLikePredicate(filter.getDescription(), root.get("description"), builder, predicates);
-        addEqualPredicateForBigDecimal(filter.getPrice(), root.get(PRICE), builder, predicates);
-        addEqualPredicateForInteger(filter.getStock(), root.get(STOCK), builder, predicates);
-        addInPredicateForEnumCodes(filter.getCode(), root.get("code"), predicates);
-        addDateRangePredicate(filter.getCreatedDateFrom(), filter.getCreatedDateTo(), builder, root.get("createdDate"), predicates);
+        // only active
+        predicates.add(cb.isNull(root.get("inactivatedDate")));
+
+        addEqualPredicateForLong(filter.getId(), root.get("id"), cb, predicates);
+        addLikePredicate(filter.getName(), root.get("name"), cb, predicates);
+        addLikePredicate(filter.getDescription(), root.get("description"), cb, predicates);
+        addEqualPredicateForBigDecimal(filter.getPrice(), root.get(PRICE), cb, predicates);
+        addEqualPredicateForInteger(filter.getStock(), root.get(STOCK), cb, predicates);
+        addInPredicateForCodes(filter.getCode(), root, cb, predicates);
+        addDateRangePredicate(filter.getCreatedDateFrom(), filter.getCreatedDateTo(), cb, root.get("createdDate"), predicates);
         return predicates;
     }
 
-    private void addInPredicateForEnumCodes(List<String> codes,
-                                            Path<DishCode> path,
-                                            List<Predicate> predicates) {
-        if (codes == null || codes.isEmpty())
-            return;
+    private void addInPredicateForCodes(List<String> rawCodes,
+                                        Root<Dish> root,
+                                        CriteriaBuilder cb,
+                                        List<Predicate> predicates) {
+        if (rawCodes == null || rawCodes.isEmpty()) return;
 
-        List<DishCode> wanted = codes.stream()
+        // Normalize: split commas, trim, uppercase, distinct
+        List<String> codes = rawCodes.stream()
                 .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
                 .flatMap(s -> Arrays.stream(s.split(",")))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .map(String::toUpperCase)
-                .map(s -> {
-                    try {
-                        return DishCode.valueOf(s);
-                    }
-                    catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException(String.format("Invalid DishCode: '%s'", s), ex);
-                    }
-                })
+                .distinct()
                 .toList();
 
-        if (!wanted.isEmpty()) {
-            predicates.add(path.in(wanted));
-        }
+        if (codes.isEmpty()) return;
+
+        Join<Dish, DishCode> codeJoin = root.join("code");
+        CriteriaBuilder.In<String> in = cb.in(cb.lower(codeJoin.get("code")));
+        codes.forEach(c -> in.value(c.toLowerCase()));
+        predicates.add(in);
     }
 
-
-    private void addEqualPredicateForLong(String value, Path<Long> path, CriteriaBuilder builder, List<Predicate> predicates) {
-        if (value != null && !value.isEmpty())
-            predicates.add(builder.equal(path, Long.valueOf(value)));
+    private void addEqualPredicateForLong(String value, Path<Long> path, CriteriaBuilder cb, List<Predicate> predicates) {
+        if (value != null && !value.isEmpty()) predicates.add(cb.equal(path, Long.valueOf(value)));
     }
 
-    private void addLikePredicate(String value, Path<String> path, CriteriaBuilder builder, List<Predicate> predicates) {
-        if (value != null && !value.isEmpty())
-            predicates.add(builder.like(builder.lower(path), "%" + value.toLowerCase() + "%"));
+    private void addLikePredicate(String value, Path<String> path, CriteriaBuilder cb, List<Predicate> predicates) {
+        if (value != null && !value.isEmpty()) predicates.add(cb.like(cb.lower(path), "%" + value.toLowerCase() + "%"));
     }
 
-    private void addEqualPredicateForBigDecimal(String value, Path<BigDecimal> path, CriteriaBuilder builder, List<Predicate> predicates) {
-        if (value != null && !value.isEmpty())
-            predicates.add(builder.equal(path, new java.math.BigDecimal(value)));
+    private void addEqualPredicateForBigDecimal(String value, Path<BigDecimal> path, CriteriaBuilder cb, List<Predicate> predicates) {
+        if (value != null && !value.isEmpty()) predicates.add(cb.equal(path, new BigDecimal(value)));
     }
 
-    private void addEqualPredicateForInteger(String value, Path<Integer> path, CriteriaBuilder builder, List<Predicate> predicates) {
-        if (value != null && !value.isEmpty())
-            predicates.add(builder.equal(path, Integer.valueOf(value)));
+    private void addEqualPredicateForInteger(String value, Path<Integer> path, CriteriaBuilder cb, List<Predicate> predicates) {
+        if (value != null && !value.isEmpty()) predicates.add(cb.equal(path, Integer.valueOf(value)));
     }
 
-    private List<Order> getOrderList(Pageable pageable, CriteriaBuilder builder, Root<Dish> root) {
+    private List<Order> getOrderList(Pageable pageable, CriteriaBuilder cb, Root<Dish> root) {
         List<Order> orders = new ArrayList<>();
         pageable.getSort().forEach(order -> {
-            String property = order.getProperty();
-            Path<?> path = resolvePath(property, root);
-            if (path != null)
-                orders.add(order.isAscending() ? builder.asc(path) : builder.desc(path));
+            String prop = order.getProperty();
+            Path<?> p = resolvePath(prop, root);
+            if (p != null) orders.add(order.isAscending() ? cb.asc(p) : cb.desc(p));
         });
         return orders;
     }
 
     private Path<?> resolvePath(String property, Root<Dish> root) {
-        Path<?> path = root;
         switch (property) {
-            case "id":
-                path = root.get("id");
-                break;
-            case "name":
-                path = root.get("name");
-                break;
-            case PRICE:
-                path = root.get(PRICE);
-                break;
-            case STOCK:
-                path = root.get(STOCK);
-                break;
-            case "code":
-                path = root.get("code");
-                break;
+            case "id":    return root.get("id");
+            case "name":  return root.get("name");
+            case PRICE:   return root.get(PRICE);
+            case STOCK:   return root.get(STOCK);
+            case "code":  // sort by code text via join
+                return root.join("code").get("code");
             default:
-                String[] parts = property.split("\\.");
-                for (String part : parts) {
-                    path = path.get(part);
-                }
-                break;
+                Path<?> p = root;
+                for (String part : property.split("\\.")) p = p.get(part);
+                return p;
         }
-        return path;
     }
 
-    private void addDateRangePredicate(String dateFrom, String dateTo, CriteriaBuilder builder, Path<LocalDateTime> path, List<Predicate> predicates) {
+    private void addDateRangePredicate(String dateFrom, String dateTo, CriteriaBuilder cb, Path<LocalDateTime> path, List<Predicate> predicates) {
         if (dateFrom != null && dateTo == null)
-            predicates.add(builder.greaterThanOrEqualTo(path, parseDate(dateFrom).atStartOfDay()));
+            predicates.add(cb.greaterThanOrEqualTo(path, parseDate(dateFrom).atStartOfDay()));
         else if (dateFrom == null && dateTo != null)
-            predicates.add(builder.lessThanOrEqualTo(path, parseDate(dateTo).atTime(LocalTime.MAX)));
+            predicates.add(cb.lessThanOrEqualTo(path, parseDate(dateTo).atTime(LocalTime.MAX)));
         else if (dateFrom != null)
-            predicates.add(builder.between(path, parseDate(dateFrom).atStartOfDay(), parseDate(dateTo).atTime(LocalTime.MAX)));
+            predicates.add(cb.between(path, parseDate(dateFrom).atStartOfDay(), parseDate(dateTo).atTime(LocalTime.MAX)));
     }
 
     private LocalDate parseDate(String date) {
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        return LocalDate.parse(date, dateFormatter);
+        return LocalDate.parse(date, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
     }
 
-    private long getTotalCount(DishFilterDTO filter, CriteriaBuilder builder) {
-        CriteriaQuery<Long> countQuery = builder.createQuery(Long.class);
+    private long getTotalCount(DishFilterDTO filter, CriteriaBuilder cb) {
+        CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<Dish> countRoot = countQuery.from(Dish.class);
-        List<Predicate> predicates = buildPredicates(filter, builder, countRoot);
-        countQuery.select(builder.count(countRoot)).where(predicates.toArray(new Predicate[0]));
+        List<Predicate> predicates = buildPredicates(filter, cb, countRoot);
+        countQuery.select(cb.count(countRoot)).where(predicates.toArray(new Predicate[0]));
         return entityManager.createQuery(countQuery).getSingleResult();
     }
 
